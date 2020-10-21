@@ -33,23 +33,6 @@ public class WorldControl {
 		MinecraftForge.EVENT_BUS.register(this);
 		new Server().registerSelf(MinecraftForge.EVENT_BUS);
 		
-		if (FMLEnvironment.dist.isClient()) {
-			new Client().registerSelf(MinecraftForge.EVENT_BUS);
-//			MinecraftForge.EVENT_BUS.addListener(this::chatc);
-//			MinecraftForge.EVENT_BUS.addListener(this::renderUI);
-//			MinecraftForge.EVENT_BUS.addListener(this::renderStruct);
-		}
+		if (FMLEnvironment.dist.isClient()) new Client().registerSelf(MinecraftForge.EVENT_BUS);
 	}
-
-//	private void chatc(ClientChatEvent event) {
-//		Client.chatc(event);
-//	}
-//
-//	private void renderUI(RenderGameOverlayEvent event) {
-//		Client.renderUI(event);
-//	}
-//
-//	private void renderStruct(RenderWorldLastEvent event) {
-//		Client.renderStruct(event);
-//	}
 }
