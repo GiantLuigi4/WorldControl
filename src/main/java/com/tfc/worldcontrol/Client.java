@@ -84,6 +84,7 @@ public class Client {
 	}
 	
 	private void chatc(ClientChatEvent event) {
+		BetterFPSWrapper.addSection("world_control:Process Chat");
 		if (event.getMessage().equals("!WCHelp")) {
 			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "6Slow Mode Help"), false);
 			
@@ -162,6 +163,7 @@ public class Client {
 				), false);
 			}
 		}
+		BetterFPSWrapper.endSection();
 	}
 	
 	//MCJTY:https://github.com/McJty/YouTubeModding14/blob/master/src/main/java/com/mcjty/mytutorial/blocks/FancyBakedModel.java
@@ -185,6 +187,7 @@ public class Client {
 	}
 	
 	private void renderStruct(RenderWorldLastEvent event) {
+		BetterFPSWrapper.addSection("world_control:Render Struct");
 		Direction[] dirs = new Direction[]{
 				Direction.UP,
 				Direction.DOWN,
@@ -361,5 +364,6 @@ public class Client {
 		} catch (Throwable err) {
 			err.printStackTrace();
 		}
+		BetterFPSWrapper.endSection();
 	}
 }

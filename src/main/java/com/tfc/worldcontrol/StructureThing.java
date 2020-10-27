@@ -20,15 +20,16 @@ public class StructureThing {
 	}
 	
 	public StructureThing(String file) throws IOException {
-		Scanner sc = new Scanner(new File("world_control\\structures\\" + file + ".txt" ));
+		BetterFPSWrapper.addSection("world_control:Load Struct");
+		Scanner sc = new Scanner(new File("world_control\\structures\\" + file + ".txt"));
 		ArrayList<BlockContext> blockContexts = new ArrayList<>();
 		while (sc.hasNextLine()) {
-			String line = sc.nextLine().replace("|{", "|Block{" );
-			String[] parts = line.split("\\|" );
+			String line = sc.nextLine().replace("|{", "|Block{");
+			String[] parts = line.split("\\|");
 			BlockPos pos = (BlockPos.fromLong(Long.parseLong(parts[0])));
-			String block = parts[1].replace("Block{", "" );
-			if (block.contains("[" )) block = block.substring(0, block.indexOf("[" ));
-			block = block.replace("}", "" );
+			String block = parts[1].replace("Block{", "");
+			if (block.contains("[")) block = block.substring(0, block.indexOf("["));
+			block = block.replace("}", "");
 			Block b = (ForgeRegistries.BLOCKS.getValue(new ResourceLocation(block)));
 			BlockState state = b.getDefaultState();
 			if (parts[1].contains("[" )) {
@@ -54,6 +55,7 @@ public class StructureThing {
 		}
 		sc.close();
 		this.blocks = blockContexts.toArray(new BlockContext[0]);
+		BetterFPSWrapper.endSection();
 	}
 	
 	private static <A extends Comparable<A>> BlockState with(BlockState state, Property<A> prop, String val) {
