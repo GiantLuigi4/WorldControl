@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.IVertexBuilder;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.IRenderTypeBuffer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.model.BakedQuad;
@@ -188,180 +189,196 @@ public class Client {
 	
 	private void renderStruct(RenderWorldLastEvent event) {
 		BetterFPSWrapper.addSection("world_control:Render Struct");
-		if (!Minecraft.getInstance().player.isSpectator() && !Minecraft.getInstance().gameSettings.hideGUI) {
-			Direction[] dirs = new Direction[]{
-					Direction.UP,
-					Direction.DOWN,
-					Direction.NORTH,
-					Direction.EAST,
-					Direction.SOUTH,
-					Direction.WEST,
-					null
-			};
+		
+		if (Minecraft.getInstance().player == null || Minecraft.getInstance().world == null) {
+			BetterFPSWrapper.endSection();
+			return;
+		}
+
+//		if (!Minecraft.getInstance().player.isSpectator() || !Minecraft.getInstance().gameSettings.hideGUI) {
+//			BetterFPSWrapper.endSection();
+//			return;
+//		}
+		
+		IRenderTypeBuffer.Impl buffer = Minecraft.getInstance().getRenderTypeBuffers().getBufferSource();
+		IVertexBuilder builder = buffer.getBuffer(RenderType.getSolid());
+		
+		Direction[] dirs = new Direction[]{
+				Direction.UP,
+				Direction.DOWN,
+				Direction.NORTH,
+				Direction.EAST,
+				Direction.SOUTH,
+				Direction.WEST,
+				null
+		};
+		
+		event.getMatrixStack().push();
+		event.getMatrixStack().translate(
+				-Minecraft.getInstance().getRenderManager().info.getProjectedView().x,
+				-Minecraft.getInstance().getRenderManager().info.getProjectedView().y,
+				-Minecraft.getInstance().getRenderManager().info.getProjectedView().z
+		);
+		
+		event.getMatrixStack().translate(structX, structY, structZ);
+		
+		for (BlockContext context : struct.blocks) {
 			event.getMatrixStack().push();
-			event.getMatrixStack().translate(
-					-Minecraft.getInstance().getRenderManager().info.getProjectedView().x,
-					-Minecraft.getInstance().getRenderManager().info.getProjectedView().y,
-					-Minecraft.getInstance().getRenderManager().info.getProjectedView().z
-			);
-			event.getMatrixStack().translate(structX, structY, structZ);
-			for (BlockContext context : struct.blocks) {
-				event.getMatrixStack().push();
-				BlockPos pos = context.pos;
-				event.getMatrixStack().translate(pos.getX(), pos.getY(), pos.getZ());
-				BlockPos pos1 = pos.add(structX, structY, structZ);
-				BlockState state = context.state;
-				if (struct.blocks.length <= 20000 || pos1.distanceSq(Minecraft.getInstance().player.getPosition()) <= 200) {
-					if (!Minecraft.getInstance().world.getBlockState(pos1).equals(state)) {
-//						int col = Minecraft.getInstance().getBlockColors().getColor(state, Minecraft.getInstance().world, pos1, 0);
-						int light = LightTexture.packLight(Minecraft.getInstance().world.getLightFor(LightType.BLOCK, pos1), Minecraft.getInstance().world.getLightFor(LightType.SKY, pos1));
-						event.getMatrixStack().push();
-						event.getMatrixStack().scale(0.5f, 0.5f, 0.5f);
-						event.getMatrixStack().translate(0.5f, 0.5f, 0.5f);
-						reader.setState(state);
-						reader.setPos1(pos1);
-//						Minecraft.getInstance().getBlockRendererDispatcher().getBlockModelRenderer().renderModel(
-//								event.getMatrixStack().getLast(),
-//								Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getCutout()),
-//								null,
-//								Minecraft.getInstance().getBlockRendererDispatcher().getModelForState(state),
-//								((col >> 16) & 0xFF) / 255f,
-//								((col >> 8) & 0xFF) / 255f,
-//								((col) & 0xFF) / 255f,
-//								light, OverlayTexture.NO_OVERLAY,
-//								ModelDataManager.getModelData(Minecraft.getInstance().world, pos)
-//						);
-//						Minecraft.getInstance().getBlockRendererDispatcher().renderBlock(state, event.getMatrixStack(), Minecraft.getInstance().getRenderTypeBuffers().getBufferSource(),light, OverlayTexture.NO_OVERLAY);
-						IBakedModel model = Minecraft.getInstance().getBlockRendererDispatcher().getModelForState(state);
+			BlockPos pos = context.pos;
+			event.getMatrixStack().translate(pos.getX(), pos.getY(), pos.getZ());
+			BlockPos pos1 = pos.add(structX, structY, structZ);
+			BlockState state = context.state;
+			
+			if (struct.blocks.length <= 20000 || pos1.distanceSq(Minecraft.getInstance().player.getPosition()) <= 200) {
+				if (!Minecraft.getInstance().world.getBlockState(pos1).equals(state)) {
+					int light = LightTexture.packLight(Minecraft.getInstance().world.getLightFor(LightType.BLOCK, pos1), Minecraft.getInstance().world.getLightFor(LightType.SKY, pos1));
+					event.getMatrixStack().push();
+					event.getMatrixStack().scale(0.5f, 0.5f, 0.5f);
+					event.getMatrixStack().translate(0.5f, 0.5f, 0.5f);
+					reader.setState(state);
+					reader.setPos1(pos1);
+					IBakedModel model = Minecraft.getInstance().getBlockRendererDispatcher().getModelForState(state);
+					
+					for (Direction dir : dirs) {
+						for (BakedQuad qd : model.getQuads(state, dir, new Random(pos1.toLong()))) {
+							int col = Minecraft.getInstance().getBlockColors().getColor(state, Minecraft.getInstance().world, pos1, qd.getTintIndex());
+							Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getCutout()).addQuad(
+									event.getMatrixStack().getLast(), qd,
+									((col >> 16) & 0xFF) / 255f,
+									((col >> 8) & 0xFF) / 255f,
+									((col) & 0xFF) / 255f,
+									light, OverlayTexture.NO_OVERLAY
+							);
+						}
+					}
+					
+					if (!state.getFluidState().isEmpty()) {
+						TextureAtlasSprite[] array = ((ForgeHooksClient.getFluidSprites(reader, pos1, state.getFluidState())));
+						float scl = 8f;
+						int col1 = Minecraft.getInstance().getBlockColors().getColor(state.getFluidState().getBlockState(), Minecraft.getInstance().world, pos1, 0);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(0, 0, 0),
+										new Vector3d(1, 0, 0),
+										new Vector3d(1, 0, 1),
+										new Vector3d(0, 0, 1),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
+										new Vector3d(0, 0, 0),
+										new Vector3d(0, 0, 1),
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
+										new Vector3d(1, 0, 0),
+										new Vector3d(0, 0, 0),
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
+										new Vector3d(0, 0, 1),
+										new Vector3d(1, 0, 1),
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+						
+						builder.addQuad(
+								event.getMatrixStack().getLast(),
+								createQuad(
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
+										new Vector3d(1, 0, 1),
+										new Vector3d(1, 0, 0),
+										new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
+										array[0], Direction.UP, 0, 0.5f
+								),
+								((col1 >> 16) & 0xFF) / 255f,
+								((col1 >> 8) & 0xFF) / 255f,
+								((col1) & 0xFF) / 255f,
+								light, OverlayTexture.NO_OVERLAY
+						);
+					}
+					
+					event.getMatrixStack().pop();
+					
+					if (!Minecraft.getInstance().world.getBlockState(pos1).isAir()) {
+						float amt = 0.01f;
+						event.getMatrixStack().translate(-amt / 2f, -amt / 2f, -amt / 2f);
+						event.getMatrixStack().scale(1 + amt, 1 + amt, 1 + amt);
+						model = Minecraft.getInstance().getBlockRendererDispatcher().getModelForState(Blocks.RED_STAINED_GLASS.getDefaultState());
+						
 						for (Direction dir : dirs) {
 							for (BakedQuad qd : model.getQuads(state, dir, new Random(pos1.toLong()))) {
 								int col = Minecraft.getInstance().getBlockColors().getColor(state, Minecraft.getInstance().world, pos1, qd.getTintIndex());
-								Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getCutout()).addQuad(
+								Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getTranslucent()).addQuad(
 										event.getMatrixStack().getLast(), qd,
 										((col >> 16) & 0xFF) / 255f,
 										((col >> 8) & 0xFF) / 255f,
 										((col) & 0xFF) / 255f,
-										light, OverlayTexture.NO_OVERLAY
+										LightTexture.packLight(15, 15), OverlayTexture.NO_OVERLAY
 								);
-							}
-						}
-						if (!state.getFluidState().isEmpty()) {
-							TextureAtlasSprite[] array = ((ForgeHooksClient.getFluidSprites(reader, pos1, state.getFluidState())));
-							IVertexBuilder builder = Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getSolid());
-							float scl = 8f;
-							int col1 = Minecraft.getInstance().getBlockColors().getColor(state.getFluidState().getBlockState(), Minecraft.getInstance().world, pos1, 0);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(0, 0, 0),
-											new Vector3d(1, 0, 0),
-											new Vector3d(1, 0, 1),
-											new Vector3d(0, 0, 1),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
-											new Vector3d(0, 0, 0),
-											new Vector3d(0, 0, 1),
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
-											new Vector3d(1, 0, 0),
-											new Vector3d(0, 0, 0),
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 0),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(0, state.getFluidState().getLevel() / scl, 1),
-											new Vector3d(0, 0, 1),
-											new Vector3d(1, 0, 1),
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-							builder.addQuad(
-									event.getMatrixStack().getLast(),
-									createQuad(
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 1),
-											new Vector3d(1, 0, 1),
-											new Vector3d(1, 0, 0),
-											new Vector3d(1, state.getFluidState().getLevel() / scl, 0),
-											array[0], Direction.UP, 0, 0.5f
-									),
-									((col1 >> 16) & 0xFF) / 255f,
-									((col1 >> 8) & 0xFF) / 255f,
-									((col1) & 0xFF) / 255f,
-									light, OverlayTexture.NO_OVERLAY
-							);
-						}
-						event.getMatrixStack().pop();
-						if (!Minecraft.getInstance().world.getBlockState(pos1).isAir()) {
-							float amt = 0.01f;
-							event.getMatrixStack().translate(-amt / 2f, -amt / 2f, -amt / 2f);
-							event.getMatrixStack().scale(1 + amt, 1 + amt, 1 + amt);
-							model = Minecraft.getInstance().getBlockRendererDispatcher().getModelForState(Blocks.RED_STAINED_GLASS.getDefaultState());
-							for (Direction dir : dirs) {
-								for (BakedQuad qd : model.getQuads(state, dir, new Random(pos1.toLong()))) {
-									int col = Minecraft.getInstance().getBlockColors().getColor(state, Minecraft.getInstance().world, pos1, qd.getTintIndex());
-									Minecraft.getInstance().getRenderTypeBuffers().getBufferSource().getBuffer(RenderType.getTranslucent()).addQuad(
-											event.getMatrixStack().getLast(), qd,
-											((col >> 16) & 0xFF) / 255f,
-											((col >> 8) & 0xFF) / 255f,
-											((col) & 0xFF) / 255f,
-											LightTexture.packLight(15, 15), OverlayTexture.NO_OVERLAY
-									);
-								}
 							}
 						}
 					}
 				}
-				event.getMatrixStack().pop();
 			}
-			event.getMatrixStack().translate(-10000, -10000, -10000);
-			Minecraft.getInstance().getBlockRendererDispatcher().renderBlock(Blocks.GLASS.getDefaultState(), event.getMatrixStack(), Minecraft.getInstance().getRenderTypeBuffers().getBufferSource(), 0, OverlayTexture.NO_OVERLAY);
 			event.getMatrixStack().pop();
 		}
+		
+		event.getMatrixStack().translate(-10000, -10000, -10000);
+		Minecraft.getInstance().getBlockRendererDispatcher().renderBlock(Blocks.GLASS.getDefaultState(), event.getMatrixStack(), Minecraft.getInstance().getRenderTypeBuffers().getBufferSource(), 0, OverlayTexture.NO_OVERLAY);
+		event.getMatrixStack().pop();
+		buffer.finish();
+		
 		BetterFPSWrapper.endSection();
 	}
 }
