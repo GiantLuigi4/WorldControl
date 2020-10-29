@@ -88,7 +88,7 @@ public class Client {
 		if (event.getMessage().equals("!WCHelp")) {
 			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "6Slow Mode Help"), false);
 			
-			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "2!SMHelp"), false);
+			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "2!WCHelp"), false);
 			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "3Shows this, the slow mode help."), false);
 			
 			Minecraft.getInstance().player.sendStatusMessage(new StringTextComponent(colorCode + "2!SetSpeed [mspt/6.5]"), false);
@@ -188,16 +188,16 @@ public class Client {
 	
 	private void renderStruct(RenderWorldLastEvent event) {
 		BetterFPSWrapper.addSection("world_control:Render Struct");
-		Direction[] dirs = new Direction[]{
-				Direction.UP,
-				Direction.DOWN,
-				Direction.NORTH,
-				Direction.EAST,
-				Direction.SOUTH,
-				Direction.WEST,
-				null
-		};
-		try {
+		if (!Minecraft.getInstance().player.isSpectator() && !Minecraft.getInstance().gameSettings.hideGUI) {
+			Direction[] dirs = new Direction[]{
+					Direction.UP,
+					Direction.DOWN,
+					Direction.NORTH,
+					Direction.EAST,
+					Direction.SOUTH,
+					Direction.WEST,
+					null
+			};
 			event.getMatrixStack().push();
 			event.getMatrixStack().translate(
 					-Minecraft.getInstance().getRenderManager().info.getProjectedView().x,
@@ -361,8 +361,6 @@ public class Client {
 			event.getMatrixStack().translate(-10000, -10000, -10000);
 			Minecraft.getInstance().getBlockRendererDispatcher().renderBlock(Blocks.GLASS.getDefaultState(), event.getMatrixStack(), Minecraft.getInstance().getRenderTypeBuffers().getBufferSource(), 0, OverlayTexture.NO_OVERLAY);
 			event.getMatrixStack().pop();
-		} catch (Throwable err) {
-			err.printStackTrace();
 		}
 		BetterFPSWrapper.endSection();
 	}
